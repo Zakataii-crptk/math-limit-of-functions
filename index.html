@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>แบบฝึกหัดลิมิตของฟังก์ชันและความต่อเนื่องของฟังก์ชัน ม.6</title>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js">
+
+document.addEventListener("visibilitychange", function(){
+    if(examStarted && document.hidden) terminateExam("ตรวจพบการเปลี่ยนแท็บหรือออกจากหน้าต่างแบบฝึกหัด");
+});
+
+window.addEventListener("blur", function(){
+    if(examStarted) terminateExam("ตรวจพบการเปลี่ยนหน้าต่าง");
+});
+
+document.addEventListener("keydown", function(e){
+    if(!examStarted) return;
+    if(e.key === "F5" || (e.ctrlKey && e.key.toLowerCase() === "r")){
+        e.preventDefault();
+        terminateExam("ตรวจพบการรีเฟรชหน้าเว็บ");
+    }
+});
+
+window.addEventListener("beforeunload", function(e){
+    if(examStarted){ e.preventDefault(); e.returnValue = ""; }
+});
+
+history.pushState(null, "", location.href);
+window.addEventListener("popstate", function(){
+    terminateExam("ตรวจพบการกดย้อนกลับ");
+});
+
+</script>
+
+<style>
+*{box-sizing:border-box}
+body{
+    margin:0;
+    font-family:Arial,"Tahoma",sans-serif;
+    background:#eef3fa;
+    color:#222;
+}
+.container{
+    max-width:900px;
+    margin:40px auto;
+    background:white;
+    padding:30px;
+    border-radius:16px;
+    box-shadow:0 8px 24px rgba(0,0,0,.12);
+}
+h1,h2,h3{text-align:center}
+h1{color:#2457a6}
+input{
+    width:100%;
+    padding:14px;
+    margin:10px 0;
+    font-size:16px;
+    border:1px solid #ccc;
+    border-radius:10px;
+}
+button{
+    padding:14px 24px;
+    font-size:16px;
+    border:none;
+    border-radius:10px;
+    background:#2d6cdf;
+    color:white;
+    cursor:pointer;
+}
+button:hover{background:#1f56bd}
+button:disabled{
+    background:gray;
+    cursor:not-allowed;
+}
+#examPage{display:none}
+.question-box{
+    margin-top:30px;
+    min-height:220px;
+    font-size:24px;
+    text-align:center;
+    padding:25px;
+    border:2px solid #ddd;
+    border-radius:12px;
+    background:#fafcff;
+}
+.topic{
+    display:inline-block;
+    padding:7px 14px;
+    border-radius:20px;
+    background:#e5efff;
+    color:#2457a6;
+    font-size:15px;
+    margin-bottom:15px;
+}
+.info{
+    background:#f4f7fb;
+    padding:12px 16px;
+    border-radius:10px;
+    margin:15px 0;
+}
+.terminated{
+    text-align:center;
+    margin-top:100px;
+}
+.center{text-align:center}
+.small{font-size:15px;color:#666}
+</style>
+</head>
+
+<body>
+<div class="container">
+
+<div id="loginPage">
+    <h1>แบบฝึกหัดลิมิตของฟังก์ชันและความต่อเนื่องของฟังก์ชัน</h1>
+    <h3>คณิตศาสตร์ ม.6</h3>
+
+    <div class="info">
+        <b>เนื้อหา:</b> การหาค่าลิมิตของฟังก์ชัน และการพิจารณาความต่อเนื่องของฟังก์ชัน
+    </div>
+
+    <input id="name" placeholder="ชื่อ - นามสกุล">
+    <input id="number" placeholder="เลขที่ / รหัสนักเรียน">
+
+    <div class="center">
+        <button onclick="startExam()">เริ่มทำแบบฝึกหัด</button>
+    </div>
+</div>
+
+<div id="examPage">
+    <h2>ลิมิตของฟังก์ชันและความต่อเนื่องของฟังก์ชัน</h2>
+
+    <p><b>ชื่อ:</b> <span id="studentName"></span></p>
+    <p><b>เลขที่ / รหัส:</b> <span id="studentNumber"></span></p>
+    <p><b>จำนวนข้อที่สุ่ม:</b> <span id="count">0</span>/10</p>
+
+    <div id="questionBox" class="question-box">
+        <div class="small">กดปุ่มด้านล่างเพื่อสุ่มโจทย์</div>
+    </div>
+
+    <br>
+    <div class="center">
+        <button id="randomBtn" onclick="generateQuestion()">สุ่มโจทย์</button>
+    </div>
+</div>
+
+</div>
+
+<script>
+let count = 0;
+let examStarted = false;
+let usedQuestions = [];
+
+/*
+    โครงสร้างโจทย์
+    - limitDirect: ลิมิตโดยการแทนค่าโดยตรง
+    - limitFactor: ลิมิตรูป 0/0 โดยการแยกตัวประกอบ
+    - limitRationalize: ลิมิตที่ต้องจัดรูป/ใช้การคูณด้วยพจน์สังยุค
+    - limitInfinity: ลิมิตเมื่อ x เข้าใกล้อนันต์
+    - oneSided: ลิมิตด้านซ้าย/ขวา
+    - continuity: พิจารณาความต่อเนื่องของฟังก์ชันที่จุดที่กำหนด
+*/
+
+const questionBank = [
+    {topic:"direct", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -10}(2x^2-4x+3)\\)`},
+    {topic:"direct", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -9}(3x^2+4x+6)\\)`},
+    {topic:"direct", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -8}(4x^2+3x+9)\\)`},
+    {topic:"direct", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -7}(5x^2+2x+12)\\)`},
+    {topic:"direct", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -6}(6x^2+1x+15)\\)`},
+    {topic:"direct", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -5}(7x^2+0x+18)\\)`},
+    {topic:"direct", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -4}(8x^2-1x+4)\\)`},
+    {topic:"direct", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -3}(2x^2-2x+7)\\)`},
+    {topic:"direct", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -2}(3x^2-3x+10)\\)`},
+    {topic:"direct", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -1}(4x^2-4x+13)\\)`},
+    {topic:"direct", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 0}(5x^2+4x+16)\\)`},
+    {topic:"direct", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 1}(6x^2+3x+19)\\)`},
+    {topic:"direct", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 2}(7x^2+2x+5)\\)`},
+    {topic:"direct", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 3}(8x^2+1x+8)\\)`},
+    {topic:"direct", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 4}(2x^2+0x+11)\\)`},
+    {topic:"direct", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 5}(3x^2-1x+14)\\)`},
+    {topic:"direct", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 6}(4x^2-2x+17)\\)`},
+    {topic:"direct", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 7}(5x^2-3x+3)\\)`},
+    {topic:"direct", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 8}(6x^2-4x+6)\\)`},
+    {topic:"direct", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 9}(7x^2+4x+9)\\)`},
+    {topic:"direct", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -10}(8x^2+3x+12)\\)`},
+    {topic:"direct", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -9}(2x^2+2x+15)\\)`},
+    {topic:"direct", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -8}(3x^2+1x+18)\\)`},
+    {topic:"direct", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -7}(4x^2+0x+4)\\)`},
+    {topic:"direct", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -6}(5x^2-1x+7)\\)`},
+    {topic:"direct", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -5}(6x^2-2x+10)\\)`},
+    {topic:"direct", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -4}(7x^2-3x+13)\\)`},
+    {topic:"direct", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -3}(8x^2-4x+16)\\)`},
+    {topic:"direct", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -2}(2x^2+4x+19)\\)`},
+    {topic:"direct", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -1}(3x^2+3x+5)\\)`},
+    {topic:"direct", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 0}(4x^2+2x+8)\\)`},
+    {topic:"direct", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 1}(5x^2+1x+11)\\)`},
+    {topic:"direct", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 2}(6x^2+0x+14)\\)`},
+    {topic:"direct", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 3}(7x^2-1x+17)\\)`},
+    {topic:"direct", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 4}(8x^2-2x+3)\\)`},
+    {topic:"direct", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 5}(2x^2-3x+6)\\)`},
+    {topic:"direct", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 6}(3x^2-4x+9)\\)`},
+    {topic:"direct", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 7}(4x^2+4x+12)\\)`},
+    {topic:"direct", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 8}(5x^2+3x+15)\\)`},
+    {topic:"direct", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 9}(6x^2+2x+18)\\)`},
+    {topic:"direct", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -10}(7x^2+1x+4)\\)`},
+    {topic:"direct", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -9}(8x^2+0x+7)\\)`},
+    {topic:"direct", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -8}(2x^2-1x+10)\\)`},
+    {topic:"direct", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -7}(3x^2-2x+13)\\)`},
+    {topic:"direct", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -6}(4x^2-3x+16)\\)`},
+    {topic:"direct", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -5}(5x^2-4x+19)\\)`},
+    {topic:"direct", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -4}(6x^2+4x+5)\\)`},
+    {topic:"direct", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -3}(7x^2+3x+8)\\)`},
+    {topic:"direct", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -2}(8x^2+2x+11)\\)`},
+    {topic:"direct", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -1}(2x^2+1x+14)\\)`},
+    {topic:"direct", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 0}(3x^2+0x+17)\\)`},
+    {topic:"direct", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 1}(4x^2-1x+3)\\)`},
+    {topic:"direct", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 2}(5x^2-2x+6)\\)`},
+    {topic:"direct", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 3}(6x^2-3x+9)\\)`},
+    {topic:"direct", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 4}(7x^2-4x+12)\\)`},
+    {topic:"direct", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 5}(8x^2+4x+15)\\)`},
+    {topic:"direct", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 6}(2x^2+3x+18)\\)`},
+    {topic:"direct", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 7}(3x^2+2x+4)\\)`},
+    {topic:"direct", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 8}(4x^2+1x+7)\\)`},
+    {topic:"direct", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 9}(5x^2+0x+10)\\)`},
+    {topic:"factor", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -10}\\frac{x^2+19x+90}{x+10}\\)`},
+    {topic:"factor", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -9}\\frac{x^2+15x+54}{x+9}\\)`},
+    {topic:"factor", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -8}\\frac{x^2+11x+24}{x+8}\\)`},
+    {topic:"factor", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -7}\\frac{x^2+15x+56}{x+7}\\)`},
+    {topic:"factor", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -6}\\frac{x^2+15x+54}{x+6}\\)`},
+    {topic:"factor", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -5}\\frac{x^2+15x+50}{x+5}\\)`},
+    {topic:"factor", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -4}\\frac{x^2+7x+12}{x+4}\\)`},
+    {topic:"factor", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -3}\\frac{x^2+3x}{x+3}\\)`},
+    {topic:"factor", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -2}\\frac{x^2-1x-6}{x+2}\\)`},
+    {topic:"factor", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -1}\\frac{x^2+3x+2}{x+1}\\)`},
+    {topic:"factor", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 0}\\frac{x^2+3x}{x-0}\\)`},
+    {topic:"factor", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 1}\\frac{x^2+3x-4}{x-1}\\)`},
+    {topic:"factor", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 2}\\frac{x^2-5x+6}{x-2}\\)`},
+    {topic:"factor", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 3}\\frac{x^2-9x+18}{x-3}\\)`},
+    {topic:"factor", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 4}\\frac{x^2-13x+36}{x-4}\\)`},
+    {topic:"factor", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 5}\\frac{x^2-9x+20}{x-5}\\)`},
+    {topic:"factor", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 6}\\frac{x^2-9x+18}{x-6}\\)`},
+    {topic:"factor", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 7}\\frac{x^2-9x+14}{x-7}\\)`},
+    {topic:"factor", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 8}\\frac{x^2-17x+72}{x-8}\\)`},
+    {topic:"factor", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 9}\\frac{x^2-21x+108}{x-9}\\)`},
+    {topic:"factor", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -10}\\frac{x^2+15x+50}{x+10}\\)`},
+    {topic:"factor", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -9}\\frac{x^2+19x+90}{x+9}\\)`},
+    {topic:"factor", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -8}\\frac{x^2+19x+88}{x+8}\\)`},
+    {topic:"factor", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -7}\\frac{x^2+19x+84}{x+7}\\)`},
+    {topic:"factor", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -6}\\frac{x^2+11x+30}{x+6}\\)`},
+    {topic:"factor", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -5}\\frac{x^2+7x+10}{x+5}\\)`},
+    {topic:"factor", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -4}\\frac{x^2+3x-4}{x+4}\\)`},
+    {topic:"factor", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -3}\\frac{x^2+7x+12}{x+3}\\)`},
+    {topic:"factor", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -2}\\frac{x^2+7x+10}{x+2}\\)`},
+    {topic:"factor", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -1}\\frac{x^2+7x+6}{x+1}\\)`},
+    {topic:"factor", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 0}\\frac{x^2-1x}{x-0}\\)`},
+    {topic:"factor", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 1}\\frac{x^2-5x+4}{x-1}\\)`},
+    {topic:"factor", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 2}\\frac{x^2-9x+14}{x-2}\\)`},
+    {topic:"factor", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 3}\\frac{x^2-5x+6}{x-3}\\)`},
+    {topic:"factor", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 4}\\frac{x^2-5x+4}{x-4}\\)`},
+    {topic:"factor", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 5}\\frac{x^2-5x}{x-5}\\)`},
+    {topic:"factor", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 6}\\frac{x^2-13x+42}{x-6}\\)`},
+    {topic:"factor", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 7}\\frac{x^2-17x+70}{x-7}\\)`},
+    {topic:"factor", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 8}\\frac{x^2-21x+104}{x-8}\\)`},
+    {topic:"factor", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 9}\\frac{x^2-17x+72}{x-9}\\)`},
+    {topic:"factor", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -10}\\frac{x^2+23x+130}{x+10}\\)`},
+    {topic:"factor", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -9}\\frac{x^2+23x+126}{x+9}\\)`},
+    {topic:"factor", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -8}\\frac{x^2+15x+56}{x+8}\\)`},
+    {topic:"factor", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -7}\\frac{x^2+11x+28}{x+7}\\)`},
+    {topic:"factor", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -6}\\frac{x^2+7x+6}{x+6}\\)`},
+    {topic:"factor", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -5}\\frac{x^2+11x+30}{x+5}\\)`},
+    {topic:"factor", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -4}\\frac{x^2+11x+28}{x+4}\\)`},
+    {topic:"factor", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -3}\\frac{x^2+11x+24}{x+3}\\)`},
+    {topic:"factor", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -2}\\frac{x^2+3x+2}{x+2}\\)`},
+    {topic:"factor", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -1}\\frac{x^2-1x-2}{x+1}\\)`},
+    {topic:"factor", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 0}\\frac{x^2-5x}{x-0}\\)`},
+    {topic:"factor", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 1}\\frac{x^2-1x}{x-1}\\)`},
+    {topic:"factor", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 2}\\frac{x^2-1x-2}{x-2}\\)`},
+    {topic:"factor", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 3}\\frac{x^2-1x-6}{x-3}\\)`},
+    {topic:"factor", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 4}\\frac{x^2-9x+20}{x-4}\\)`},
+    {topic:"factor", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 5}\\frac{x^2-13x+40}{x-5}\\)`},
+    {topic:"factor", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 6}\\frac{x^2-17x+66}{x-6}\\)`},
+    {topic:"factor", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 7}\\frac{x^2-13x+42}{x-7}\\)`},
+    {topic:"factor", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 8}\\frac{x^2-13x+40}{x-8}\\)`},
+    {topic:"factor", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 9}\\frac{x^2-13x+36}{x-9}\\)`},
+    {topic:"conjugate", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -10}\\frac{\\sqrt{x+11}-1}{x+10}\\)`},
+    {topic:"conjugate", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -9}\\frac{\\sqrt{x+13}-2}{x+9}\\)`},
+    {topic:"conjugate", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -8}\\frac{\\sqrt{x+17}-3}{x+8}\\)`},
+    {topic:"conjugate", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -7}\\frac{\\sqrt{x+23}-4}{x+7}\\)`},
+    {topic:"conjugate", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -6}\\frac{\\sqrt{x+31}-5}{x+6}\\)`},
+    {topic:"conjugate", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -5}\\frac{\\sqrt{x+41}-6}{x+5}\\)`},
+    {topic:"conjugate", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -4}\\frac{\\sqrt{x+5}-1}{x+4}\\)`},
+    {topic:"conjugate", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -3}\\frac{\\sqrt{x+7}-2}{x+3}\\)`},
+    {topic:"conjugate", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -2}\\frac{\\sqrt{x+11}-3}{x+2}\\)`},
+    {topic:"conjugate", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -1}\\frac{\\sqrt{x+17}-4}{x+1}\\)`},
+    {topic:"conjugate", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 0}\\frac{\\sqrt{x+25}-5}{x-0}\\)`},
+    {topic:"conjugate", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 1}\\frac{\\sqrt{x+35}-6}{x-1}\\)`},
+    {topic:"conjugate", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 2}\\frac{\\sqrt{x-1}-1}{x-2}\\)`},
+    {topic:"conjugate", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 3}\\frac{\\sqrt{x+1}-2}{x-3}\\)`},
+    {topic:"conjugate", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 4}\\frac{\\sqrt{x+5}-3}{x-4}\\)`},
+    {topic:"conjugate", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 5}\\frac{\\sqrt{x+11}-4}{x-5}\\)`},
+    {topic:"conjugate", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 6}\\frac{\\sqrt{x+19}-5}{x-6}\\)`},
+    {topic:"conjugate", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 7}\\frac{\\sqrt{x+29}-6}{x-7}\\)`},
+    {topic:"conjugate", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 8}\\frac{\\sqrt{x-7}-1}{x-8}\\)`},
+    {topic:"conjugate", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 9}\\frac{\\sqrt{x-5}-2}{x-9}\\)`},
+    {topic:"conjugate", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -10}\\frac{\\sqrt{x+19}-3}{x+10}\\)`},
+    {topic:"conjugate", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -9}\\frac{\\sqrt{x+25}-4}{x+9}\\)`},
+    {topic:"conjugate", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -8}\\frac{\\sqrt{x+33}-5}{x+8}\\)`},
+    {topic:"conjugate", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -7}\\frac{\\sqrt{x+43}-6}{x+7}\\)`},
+    {topic:"conjugate", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -6}\\frac{\\sqrt{x+7}-1}{x+6}\\)`},
+    {topic:"conjugate", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -5}\\frac{\\sqrt{x+9}-2}{x+5}\\)`},
+    {topic:"conjugate", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -4}\\frac{\\sqrt{x+13}-3}{x+4}\\)`},
+    {topic:"conjugate", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -3}\\frac{\\sqrt{x+19}-4}{x+3}\\)`},
+    {topic:"conjugate", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -2}\\frac{\\sqrt{x+27}-5}{x+2}\\)`},
+    {topic:"conjugate", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -1}\\frac{\\sqrt{x+37}-6}{x+1}\\)`},
+    {topic:"conjugate", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 0}\\frac{\\sqrt{x+1}-1}{x-0}\\)`},
+    {topic:"conjugate", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 1}\\frac{\\sqrt{x+3}-2}{x-1}\\)`},
+    {topic:"conjugate", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 2}\\frac{\\sqrt{x+7}-3}{x-2}\\)`},
+    {topic:"conjugate", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 3}\\frac{\\sqrt{x+13}-4}{x-3}\\)`},
+    {topic:"conjugate", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 4}\\frac{\\sqrt{x+21}-5}{x-4}\\)`},
+    {topic:"conjugate", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 5}\\frac{\\sqrt{x+31}-6}{x-5}\\)`},
+    {topic:"conjugate", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 6}\\frac{\\sqrt{x-5}-1}{x-6}\\)`},
+    {topic:"conjugate", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 7}\\frac{\\sqrt{x-3}-2}{x-7}\\)`},
+    {topic:"conjugate", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 8}\\frac{\\sqrt{x+1}-3}{x-8}\\)`},
+    {topic:"conjugate", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 9}\\frac{\\sqrt{x+7}-4}{x-9}\\)`},
+    {topic:"conjugate", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -10}\\frac{\\sqrt{x+35}-5}{x+10}\\)`},
+    {topic:"conjugate", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -9}\\frac{\\sqrt{x+45}-6}{x+9}\\)`},
+    {topic:"conjugate", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -8}\\frac{\\sqrt{x+9}-1}{x+8}\\)`},
+    {topic:"conjugate", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -7}\\frac{\\sqrt{x+11}-2}{x+7}\\)`},
+    {topic:"conjugate", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -6}\\frac{\\sqrt{x+15}-3}{x+6}\\)`},
+    {topic:"conjugate", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -5}\\frac{\\sqrt{x+21}-4}{x+5}\\)`},
+    {topic:"conjugate", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -4}\\frac{\\sqrt{x+29}-5}{x+4}\\)`},
+    {topic:"conjugate", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -3}\\frac{\\sqrt{x+39}-6}{x+3}\\)`},
+    {topic:"conjugate", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -2}\\frac{\\sqrt{x+3}-1}{x+2}\\)`},
+    {topic:"conjugate", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -1}\\frac{\\sqrt{x+5}-2}{x+1}\\)`},
+    {topic:"conjugate", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 0}\\frac{\\sqrt{x+9}-3}{x-0}\\)`},
+    {topic:"conjugate", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 1}\\frac{\\sqrt{x+15}-4}{x-1}\\)`},
+    {topic:"conjugate", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 2}\\frac{\\sqrt{x+23}-5}{x-2}\\)`},
+    {topic:"conjugate", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 3}\\frac{\\sqrt{x+33}-6}{x-3}\\)`},
+    {topic:"conjugate", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 4}\\frac{\\sqrt{x-3}-1}{x-4}\\)`},
+    {topic:"conjugate", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 5}\\frac{\\sqrt{x-1}-2}{x-5}\\)`},
+    {topic:"conjugate", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 6}\\frac{\\sqrt{x+3}-3}{x-6}\\)`},
+    {topic:"conjugate", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 7}\\frac{\\sqrt{x+9}-4}{x-7}\\)`},
+    {topic:"conjugate", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 8}\\frac{\\sqrt{x+17}-5}{x-8}\\)`},
+    {topic:"conjugate", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 9}\\frac{\\sqrt{x+27}-6}{x-9}\\)`},
+    {topic:"absolute", q:`จงพิจารณาว่า \\(\\displaystyle \\lim_{x\\to -10}\\frac{|x+10|}{x+10}\\) มีค่าหรือไม่`},
+    {topic:"absolute", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -9}\\frac{|x+9|}{x+12}\\)`},
+    {topic:"absolute", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -8}\\frac{|x^2-64|}{x+8}\\)`},
+    {topic:"absolute", q:`จงพิจารณาว่า \\(\\displaystyle \\lim_{x\\to -7}\\frac{|x+7|}{x+7}\\) มีค่าหรือไม่`},
+    {topic:"absolute", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -6}\\frac{|x+6|}{x+9}\\)`},
+    {topic:"absolute", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -5}\\frac{|x^2-25|}{x+5}\\)`},
+    {topic:"absolute", q:`จงพิจารณาว่า \\(\\displaystyle \\lim_{x\\to -4}\\frac{|x+4|}{x+4}\\) มีค่าหรือไม่`},
+    {topic:"absolute", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -3}\\frac{|x+3|}{x+6}\\)`},
+    {topic:"absolute", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -2}\\frac{|x^2-4|}{x+2}\\)`},
+    {topic:"absolute", q:`จงพิจารณาว่า \\(\\displaystyle \\lim_{x\\to -1}\\frac{|x+1|}{x+1}\\) มีค่าหรือไม่`},
+    {topic:"absolute", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 0}\\frac{|x-0|}{x+3}\\)`},
+    {topic:"absolute", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 1}\\frac{|x^2-1|}{x-1}\\)`},
+    {topic:"absolute", q:`จงพิจารณาว่า \\(\\displaystyle \\lim_{x\\to 2}\\frac{|x-2|}{x-2}\\) มีค่าหรือไม่`},
+    {topic:"absolute", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 3}\\frac{|x-3|}{x-0}\\)`},
+    {topic:"absolute", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 4}\\frac{|x^2-16|}{x-4}\\)`},
+    {topic:"absolute", q:`จงพิจารณาว่า \\(\\displaystyle \\lim_{x\\to 5}\\frac{|x-5|}{x-5}\\) มีค่าหรือไม่`},
+    {topic:"absolute", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 6}\\frac{|x-6|}{x-3}\\)`},
+    {topic:"absolute", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 7}\\frac{|x^2-49|}{x-7}\\)`},
+    {topic:"absolute", q:`จงพิจารณาว่า \\(\\displaystyle \\lim_{x\\to 8}\\frac{|x-8|}{x-8}\\) มีค่าหรือไม่`},
+    {topic:"absolute", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 9}\\frac{|x-9|}{x-6}\\)`},
+    {topic:"absolute", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -10}\\frac{|x^2-100|}{x+10}\\)`},
+    {topic:"absolute", q:`จงพิจารณาว่า \\(\\displaystyle \\lim_{x\\to -9}\\frac{|x+9|}{x+9}\\) มีค่าหรือไม่`},
+    {topic:"absolute", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -8}\\frac{|x+8|}{x+11}\\)`},
+    {topic:"absolute", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -7}\\frac{|x^2-49|}{x+7}\\)`},
+    {topic:"absolute", q:`จงพิจารณาว่า \\(\\displaystyle \\lim_{x\\to -6}\\frac{|x+6|}{x+6}\\) มีค่าหรือไม่`},
+    {topic:"absolute", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -5}\\frac{|x+5|}{x+8}\\)`},
+    {topic:"absolute", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -4}\\frac{|x^2-16|}{x+4}\\)`},
+    {topic:"absolute", q:`จงพิจารณาว่า \\(\\displaystyle \\lim_{x\\to -3}\\frac{|x+3|}{x+3}\\) มีค่าหรือไม่`},
+    {topic:"absolute", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -2}\\frac{|x+2|}{x+5}\\)`},
+    {topic:"absolute", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -1}\\frac{|x^2-1|}{x+1}\\)`},
+    {topic:"absolute", q:`จงพิจารณาว่า \\(\\displaystyle \\lim_{x\\to 0}\\frac{|x-0|}{x-0}\\) มีค่าหรือไม่`},
+    {topic:"absolute", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 1}\\frac{|x-1|}{x+2}\\)`},
+    {topic:"absolute", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 2}\\frac{|x^2-4|}{x-2}\\)`},
+    {topic:"absolute", q:`จงพิจารณาว่า \\(\\displaystyle \\lim_{x\\to 3}\\frac{|x-3|}{x-3}\\) มีค่าหรือไม่`},
+    {topic:"absolute", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 4}\\frac{|x-4|}{x-1}\\)`},
+    {topic:"absolute", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 5}\\frac{|x^2-25|}{x-5}\\)`},
+    {topic:"absolute", q:`จงพิจารณาว่า \\(\\displaystyle \\lim_{x\\to 6}\\frac{|x-6|}{x-6}\\) มีค่าหรือไม่`},
+    {topic:"absolute", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 7}\\frac{|x-7|}{x-4}\\)`},
+    {topic:"absolute", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 8}\\frac{|x^2-64|}{x-8}\\)`},
+    {topic:"absolute", q:`จงพิจารณาว่า \\(\\displaystyle \\lim_{x\\to 9}\\frac{|x-9|}{x-9}\\) มีค่าหรือไม่`},
+    {topic:"absolute", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -10}\\frac{|x+10|}{x+13}\\)`},
+    {topic:"absolute", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -9}\\frac{|x^2-81|}{x+9}\\)`},
+    {topic:"absolute", q:`จงพิจารณาว่า \\(\\displaystyle \\lim_{x\\to -8}\\frac{|x+8|}{x+8}\\) มีค่าหรือไม่`},
+    {topic:"absolute", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -7}\\frac{|x+7|}{x+10}\\)`},
+    {topic:"absolute", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -6}\\frac{|x^2-36|}{x+6}\\)`},
+    {topic:"absolute", q:`จงพิจารณาว่า \\(\\displaystyle \\lim_{x\\to -5}\\frac{|x+5|}{x+5}\\) มีค่าหรือไม่`},
+    {topic:"absolute", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -4}\\frac{|x+4|}{x+7}\\)`},
+    {topic:"absolute", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -3}\\frac{|x^2-9|}{x+3}\\)`},
+    {topic:"absolute", q:`จงพิจารณาว่า \\(\\displaystyle \\lim_{x\\to -2}\\frac{|x+2|}{x+2}\\) มีค่าหรือไม่`},
+    {topic:"absolute", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to -1}\\frac{|x+1|}{x+4}\\)`},
+    {topic:"absolute", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 0}\\frac{|x^2-0|}{x-0}\\)`},
+    {topic:"absolute", q:`จงพิจารณาว่า \\(\\displaystyle \\lim_{x\\to 1}\\frac{|x-1|}{x-1}\\) มีค่าหรือไม่`},
+    {topic:"absolute", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 2}\\frac{|x-2|}{x+1}\\)`},
+    {topic:"absolute", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 3}\\frac{|x^2-9|}{x-3}\\)`},
+    {topic:"absolute", q:`จงพิจารณาว่า \\(\\displaystyle \\lim_{x\\to 4}\\frac{|x-4|}{x-4}\\) มีค่าหรือไม่`},
+    {topic:"absolute", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 5}\\frac{|x-5|}{x-2}\\)`},
+    {topic:"absolute", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 6}\\frac{|x^2-36|}{x-6}\\)`},
+    {topic:"absolute", q:`จงพิจารณาว่า \\(\\displaystyle \\lim_{x\\to 7}\\frac{|x-7|}{x-7}\\) มีค่าหรือไม่`},
+    {topic:"absolute", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 8}\\frac{|x-8|}{x-5}\\)`},
+    {topic:"absolute", q:`จงหาค่า \\(\\displaystyle \\lim_{x\\to 9}\\frac{|x^2-81|}{x-9}\\)`},
+    {topic:"continuity", q:`กำหนด \\(f(x)=\\frac{x^2-100}{x+10}\\) จงพิจารณาว่า \\(f(x)\\) ต่อเนื่องที่ \\(x=-10\\) หรือไม่`},
+    {topic:"continuity", q:`กำหนด \\(f(x)=\\begin{cases}x+1,&x<-9\\\\2x+10,&x\\ge -9\\end{cases}\\) จงพิจารณาว่า \\(f(x)\\) ต่อเนื่องที่ \\(x=-9\\) หรือไม่`},
+    {topic:"continuity", q:`กำหนด \\(f(x)=\\frac{x^2-8x}{x}\\) จงพิจารณาว่า \\(f(x)\\) ต่อเนื่องที่ \\(x=0\\) หรือไม่`},
+    {topic:"continuity", q:`กำหนด \\(f(x)=\\frac{x^2-49}{x+7}\\) จงพิจารณาว่า \\(f(x)\\) ต่อเนื่องที่ \\(x=-7\\) หรือไม่`},
+    {topic:"continuity", q:`กำหนด \\(f(x)=\\begin{cases}x+1,&x<-6\\\\2x+7,&x\\ge -6\\end{cases}\\) จงพิจารณาว่า \\(f(x)\\) ต่อเนื่องที่ \\(x=-6\\) หรือไม่`},
+    {topic:"continuity", q:`กำหนด \\(f(x)=\\frac{x^2-5x}{x}\\) จงพิจารณาว่า \\(f(x)\\) ต่อเนื่องที่ \\(x=0\\) หรือไม่`},
+    {topic:"continuity", q:`กำหนด \\(f(x)=\\frac{x^2-16}{x+4}\\) จงพิจารณาว่า \\(f(x)\\) ต่อเนื่องที่ \\(x=-4\\) หรือไม่`},
+    {topic:"continuity", q:`กำหนด \\(f(x)=\\begin{cases}x+1,&x<-3\\\\2x+4,&x\\ge -3\\end{cases}\\) จงพิจารณาว่า \\(f(x)\\) ต่อเนื่องที่ \\(x=-3\\) หรือไม่`},
+    {topic:"continuity", q:`กำหนด \\(f(x)=\\frac{x^2-2x}{x}\\) จงพิจารณาว่า \\(f(x)\\) ต่อเนื่องที่ \\(x=0\\) หรือไม่`},
+    {topic:"continuity", q:`กำหนด \\(f(x)=\\frac{x^2-1}{x+1}\\) จงพิจารณาว่า \\(f(x)\\) ต่อเนื่องที่ \\(x=-1\\) หรือไม่`},
+    {topic:"continuity", q:`กำหนด \\(f(x)=\\begin{cases}x+1,&x<0\\\\2x+1,&x\\ge 0\\end{cases}\\) จงพิจารณาว่า \\(f(x)\\) ต่อเนื่องที่ \\(x=0\\) หรือไม่`},
+    {topic:"continuity", q:`กำหนด \\(f(x)=\\frac{x^2+1x}{x}\\) จงพิจารณาว่า \\(f(x)\\) ต่อเนื่องที่ \\(x=0\\) หรือไม่`},
+    {topic:"continuity", q:`กำหนด \\(f(x)=\\frac{x^2-4}{x-2}\\) จงพิจารณาว่า \\(f(x)\\) ต่อเนื่องที่ \\(x=2\\) หรือไม่`},
+    {topic:"continuity", q:`กำหนด \\(f(x)=\\begin{cases}x+1,&x<3\\\\2x-2,&x\\ge 3\\end{cases}\\) จงพิจารณาว่า \\(f(x)\\) ต่อเนื่องที่ \\(x=3\\) หรือไม่`},
+    {topic:"continuity", q:`กำหนด \\(f(x)=\\frac{x^2+4x}{x}\\) จงพิจารณาว่า \\(f(x)\\) ต่อเนื่องที่ \\(x=0\\) หรือไม่`},
+    {topic:"continuity", q:`กำหนด \\(f(x)=\\frac{x^2-25}{x-5}\\) จงพิจารณาว่า \\(f(x)\\) ต่อเนื่องที่ \\(x=5\\) หรือไม่`},
+    {topic:"continuity", q:`กำหนด \\(f(x)=\\begin{cases}x+1,&x<6\\\\2x-5,&x\\ge 6\\end{cases}\\) จงพิจารณาว่า \\(f(x)\\) ต่อเนื่องที่ \\(x=6\\) หรือไม่`},
+    {topic:"continuity", q:`กำหนด \\(f(x)=\\frac{x^2+7x}{x}\\) จงพิจารณาว่า \\(f(x)\\) ต่อเนื่องที่ \\(x=0\\) หรือไม่`},
+    {topic:"continuity", q:`กำหนด \\(f(x)=\\frac{x^2-64}{x-8}\\) จงพิจารณาว่า \\(f(x)\\) ต่อเนื่องที่ \\(x=8\\) หรือไม่`},
+    {topic:"continuity", q:`กำหนด \\(f(x)=\\begin{cases}x+1,&x<9\\\\2x-8,&x\\ge 9\\end{cases}\\) จงพิจารณาว่า \\(f(x)\\) ต่อเนื่องที่ \\(x=9\\) หรือไม่`},
+    {topic:"continuity", q:`กำหนด \\(f(x)=\\frac{x^2-10x}{x}\\) จงพิจารณาว่า \\(f(x)\\) ต่อเนื่องที่ \\(x=0\\) หรือไม่`},
+    {topic:"continuity", q:`กำหนด \\(f(x)=\\frac{x^2-81}{x+9}\\) จงพิจารณาว่า \\(f(x)\\) ต่อเนื่องที่ \\(x=-9\\) หรือไม่`},
+    {topic:"continuity", q:`กำหนด \\(f(x)=\\begin{cases}x+1,&x<-8\\\\2x+9,&x\\ge -8\\end{cases}\\) จงพิจารณาว่า \\(f(x)\\) ต่อเนื่องที่ \\(x=-8\\) หรือไม่`},
+    {topic:"continuity", q:`กำหนด \\(f(x)=\\frac{x^2-7x}{x}\\) จงพิจารณาว่า \\(f(x)\\) ต่อเนื่องที่ \\(x=0\\) หรือไม่`},
+    {topic:"continuity", q:`กำหนด \\(f(x)=\\frac{x^2-36}{x+6}\\) จงพิจารณาว่า \\(f(x)\\) ต่อเนื่องที่ \\(x=-6\\) หรือไม่`},
+    {topic:"continuity", q:`กำหนด \\(f(x)=\\begin{cases}x+1,&x<-5\\\\2x+6,&x\\ge -5\\end{cases}\\) จงพิจารณาว่า \\(f(x)\\) ต่อเนื่องที่ \\(x=-5\\) หรือไม่`},
+    {topic:"continuity", q:`กำหนด \\(f(x)=\\frac{x^2-4x}{x}\\) จงพิจารณาว่า \\(f(x)\\) ต่อเนื่องที่ \\(x=0\\) หรือไม่`},
+    {topic:"continuity", q:`กำหนด \\(f(x)=\\frac{x^2-9}{x+3}\\) จงพิจารณาว่า \\(f(x)\\) ต่อเนื่องที่ \\(x=-3\\) หรือไม่`},
+    {topic:"continuity", q:`กำหนด \\(f(x)=\\begin{cases}x+1,&x<-2\\\\2x+3,&x\\ge -2\\end{cases}\\) จงพิจารณาว่า \\(f(x)\\) ต่อเนื่องที่ \\(x=-2\\) หรือไม่`},
+    {topic:"continuity", q:`กำหนด \\(f(x)=\\frac{x^2-1x}{x}\\) จงพิจารณาว่า \\(f(x)\\) ต่อเนื่องที่ \\(x=0\\) หรือไม่`},
+    {topic:"continuity", q:`กำหนด \\(f(x)=\\frac{x^2-0}{x-0}\\) จงพิจารณาว่า \\(f(x)\\) ต่อเนื่องที่ \\(x=0\\) หรือไม่`},
+    {topic:"continuity", q:`กำหนด \\(f(x)=\\begin{cases}x+1,&x<1\\\\2x+0,&x\\ge 1\\end{cases}\\) จงพิจารณาว่า \\(f(x)\\) ต่อเนื่องที่ \\(x=1\\) หรือไม่`},
+    {topic:"continuity", q:`กำหนด \\(f(x)=\\frac{x^2+2x}{x}\\) จงพิจารณาว่า \\(f(x)\\) ต่อเนื่องที่ \\(x=0\\) หรือไม่`},
+    {topic:"continuity", q:`กำหนด \\(f(x)=\\frac{x^2-9}{x-3}\\) จงพิจารณาว่า \\(f(x)\\) ต่อเนื่องที่ \\(x=3\\) หรือไม่`},
+    {topic:"continuity", q:`กำหนด \\(f(x)=\\begin{cases}x+1,&x<4\\\\2x-3,&x\\ge 4\\end{cases}\\) จงพิจารณาว่า \\(f(x)\\) ต่อเนื่องที่ \\(x=4\\) หรือไม่`},
+    {topic:"continuity", q:`กำหนด \\(f(x)=\\frac{x^2+5x}{x}\\) จงพิจารณาว่า \\(f(x)\\) ต่อเนื่องที่ \\(x=0\\) หรือไม่`},
+    {topic:"continuity", q:`กำหนด \\(f(x)=\\frac{x^2-36}{x-6}\\) จงพิจารณาว่า \\(f(x)\\) ต่อเนื่องที่ \\(x=6\\) หรือไม่`},
+    {topic:"continuity", q:`กำหนด \\(f(x)=\\begin{cases}x+1,&x<7\\\\2x-6,&x\\ge 7\\end{cases}\\) จงพิจารณาว่า \\(f(x)\\) ต่อเนื่องที่ \\(x=7\\) หรือไม่`},
+    {topic:"continuity", q:`กำหนด \\(f(x)=\\frac{x^2+8x}{x}\\) จงพิจารณาว่า \\(f(x)\\) ต่อเนื่องที่ \\(x=0\\) หรือไม่`},
+    {topic:"continuity", q:`กำหนด \\(f(x)=\\frac{x^2-81}{x-9}\\) จงพิจารณาว่า \\(f(x)\\) ต่อเนื่องที่ \\(x=9\\) หรือไม่`},
+    {topic:"continuity", q:`กำหนด \\(f(x)=\\begin{cases}x+1,&x<-10\\\\2x+11,&x\\ge -10\\end{cases}\\) จงพิจารณาว่า \\(f(x)\\) ต่อเนื่องที่ \\(x=-10\\) หรือไม่`},
+    {topic:"continuity", q:`กำหนด \\(f(x)=\\frac{x^2-9x}{x}\\) จงพิจารณาว่า \\(f(x)\\) ต่อเนื่องที่ \\(x=0\\) หรือไม่`},
+    {topic:"continuity", q:`กำหนด \\(f(x)=\\frac{x^2-64}{x+8}\\) จงพิจารณาว่า \\(f(x)\\) ต่อเนื่องที่ \\(x=-8\\) หรือไม่`},
+    {topic:"continuity", q:`กำหนด \\(f(x)=\\begin{cases}x+1,&x<-7\\\\2x+8,&x\\ge -7\\end{cases}\\) จงพิจารณาว่า \\(f(x)\\) ต่อเนื่องที่ \\(x=-7\\) หรือไม่`},
+    {topic:"continuity", q:`กำหนด \\(f(x)=\\frac{x^2-6x}{x}\\) จงพิจารณาว่า \\(f(x)\\) ต่อเนื่องที่ \\(x=0\\) หรือไม่`},
+    {topic:"continuity", q:`กำหนด \\(f(x)=\\frac{x^2-25}{x+5}\\) จงพิจารณาว่า \\(f(x)\\) ต่อเนื่องที่ \\(x=-5\\) หรือไม่`},
+    {topic:"continuity", q:`กำหนด \\(f(x)=\\begin{cases}x+1,&x<-4\\\\2x+5,&x\\ge -4\\end{cases}\\) จงพิจารณาว่า \\(f(x)\\) ต่อเนื่องที่ \\(x=-4\\) หรือไม่`},
+    {topic:"continuity", q:`กำหนด \\(f(x)=\\frac{x^2-3x}{x}\\) จงพิจารณาว่า \\(f(x)\\) ต่อเนื่องที่ \\(x=0\\) หรือไม่`},
+    {topic:"continuity", q:`กำหนด \\(f(x)=\\frac{x^2-4}{x+2}\\) จงพิจารณาว่า \\(f(x)\\) ต่อเนื่องที่ \\(x=-2\\) หรือไม่`},
+    {topic:"continuity", q:`กำหนด \\(f(x)=\\begin{cases}x+1,&x<-1\\\\2x+2,&x\\ge -1\\end{cases}\\) จงพิจารณาว่า \\(f(x)\\) ต่อเนื่องที่ \\(x=-1\\) หรือไม่`},
+    {topic:"continuity", q:`กำหนด \\(f(x)=\\frac{x^2+0x}{x}\\) จงพิจารณาว่า \\(f(x)\\) ต่อเนื่องที่ \\(x=0\\) หรือไม่`},
+    {topic:"continuity", q:`กำหนด \\(f(x)=\\frac{x^2-1}{x-1}\\) จงพิจารณาว่า \\(f(x)\\) ต่อเนื่องที่ \\(x=1\\) หรือไม่`},
+    {topic:"continuity", q:`กำหนด \\(f(x)=\\begin{cases}x+1,&x<2\\\\2x-1,&x\\ge 2\\end{cases}\\) จงพิจารณาว่า \\(f(x)\\) ต่อเนื่องที่ \\(x=2\\) หรือไม่`},
+    {topic:"continuity", q:`กำหนด \\(f(x)=\\frac{x^2+3x}{x}\\) จงพิจารณาว่า \\(f(x)\\) ต่อเนื่องที่ \\(x=0\\) หรือไม่`},
+    {topic:"continuity", q:`กำหนด \\(f(x)=\\frac{x^2-16}{x-4}\\) จงพิจารณาว่า \\(f(x)\\) ต่อเนื่องที่ \\(x=4\\) หรือไม่`},
+    {topic:"continuity", q:`กำหนด \\(f(x)=\\begin{cases}x+1,&x<5\\\\2x-4,&x\\ge 5\\end{cases}\\) จงพิจารณาว่า \\(f(x)\\) ต่อเนื่องที่ \\(x=5\\) หรือไม่`},
+    {topic:"continuity", q:`กำหนด \\(f(x)=\\frac{x^2+6x}{x}\\) จงพิจารณาว่า \\(f(x)\\) ต่อเนื่องที่ \\(x=0\\) หรือไม่`},
+    {topic:"continuity", q:`กำหนด \\(f(x)=\\frac{x^2-49}{x-7}\\) จงพิจารณาว่า \\(f(x)\\) ต่อเนื่องที่ \\(x=7\\) หรือไม่`},
+    {topic:"continuity", q:`กำหนด \\(f(x)=\\begin{cases}x+1,&x<8\\\\2x-7,&x\\ge 8\\end{cases}\\) จงพิจารณาว่า \\(f(x)\\) ต่อเนื่องที่ \\(x=8\\) หรือไม่`},
+    {topic:"continuity", q:`กำหนด \\(f(x)=\\frac{x^2+9x}{x}\\) จงพิจารณาว่า \\(f(x)\\) ต่อเนื่องที่ \\(x=0\\) หรือไม่`},
+];
+
+
+function terminateExam(msg){
+    document.body.innerHTML = `
+        <div class="terminated">
+            <h1 style="color:red;">สิ้นสุดการทำแบบฝึกหัด</h1>
+            <p>${msg}</p>
+        </div>`;
+}
+
+function startExam(){
+    const name = document.getElementById("name").value.trim();
+    const number = document.getElementById("number").value.trim();
+
+    if(!name || !number){
+        alert("กรุณากรอกชื่อและเลขที่ / รหัสนักเรียนให้ครบถ้วน");
+        return;
+    }
+
+    examStarted = true;
+    document.getElementById("studentName").textContent = name;
+    document.getElementById("studentNumber").textContent = number;
+    document.getElementById("loginPage").style.display = "none";
+    document.getElementById("examPage").style.display = "block";
+}
+
+function typesetQuestion(){
+    if(window.MathJax && typeof MathJax.typesetPromise === "function"){
+        MathJax.typesetClear([document.getElementById("questionBox")]);
+        MathJax.typesetPromise([document.getElementById("questionBox")]).catch(()=>{});
+    }
+}
+
+function generateQuestion(){
+    if(count >= 10) return;
+    const topicOrder = ["direct","factor","conjugate","absolute","continuity"];
+    const currentTopic = topicOrder[Math.floor(count / 2)];
+    const candidates = questionBank.filter(q => q.topic === currentTopic && !usedQuestions.some(u => u.q === q.q));
+    if(candidates.length === 0){ alert("ไม่พบโจทย์ที่ยังไม่ถูกสุ่มในหัวข้อนี้"); return; }
+    const question = candidates[Math.floor(Math.random() * candidates.length)];
+    usedQuestions.push(question);
+    count++;
+    document.getElementById("count").innerText = count;
+    document.getElementById("questionBox").innerHTML = `<div>${question.q}</div>`;
+    typesetQuestion();
+    if(count >= 10){
+        document.getElementById("randomBtn").disabled = true;
+        document.getElementById("randomBtn").innerText = "ครบ 10 ข้อแล้ว";
+    }
+}
+
+</script>
+</body>
+</html>
